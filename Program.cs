@@ -20,8 +20,10 @@ if (!string.IsNullOrWhiteSpace(connectionString) && connectionString.StartsWith(
     var uri = new Uri(connectionString);
     var userInfo = uri.UserInfo.Split(':', 2);
     
-    // Собираем правильную строку
-    connectionString = $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true";
+    // Если порт не указан (равен -1), ставим стандартный 5432
+    var finalPort = uri.Port == -1 ? 5432 : uri.Port;
+    
+    connectionString = $"Host={uri.Host};Port={finalPort};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true";
 }
 
 Console.WriteLine($"DEBUG: Строка подключения ПОСЛЕ конвертации = {connectionString}");
