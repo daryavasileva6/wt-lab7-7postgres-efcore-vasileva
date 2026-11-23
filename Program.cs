@@ -104,3 +104,24 @@ app.MapDelete("/api/products/{id}", async (int id, AppDbContext db) =>
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
 app.Run($"http://0.0.0.0:{port}");
+
+// LINQ 1: Фильтрация по цене (Price > 100)
+app.MapGet("/api/products/filter", async (AppDbContext db) =>
+{
+    var products = await db.Products.Where(x => x.Price > 100).ToListAsync();
+    return Results.Ok(products);
+});
+
+// LINQ 2: Сортировка по цене
+app.MapGet("/api/products/sorted", async (AppDbContext db) =>
+{
+    var products = await db.Products.OrderBy(x => x.Price).ToListAsync();
+    return Results.Ok(products);
+});
+
+// LINQ 3: Выборка с условием (IsAvailable == true) и сортировка по имени
+app.MapGet("/api/products/available", async (AppDbContext db) =>
+{
+    var products = await db.Products.Where(x => x.IsAvailable).OrderBy(x => x.Name).ToListAsync();
+    return Results.Ok(products);
+});
