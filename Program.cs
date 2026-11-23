@@ -8,15 +8,30 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// 2. Подключение к базе данных
-// Код автоматически возьмет строку подключения из переменной окружения ConnectionStrings__DefaultConnection (на Render)
-// или из appsettings.json (локально)
+// 2. Получаем строку подключения
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// --- ОТЛАДКА: Выведем в логи Render то, что пришло ---
+Console.WriteLine($"DEBUG: Строка подключения ДО конвертации = {connectionString}");
+
+// Конвертируем формат postgresql:// в формат Npgsql (Host=...;Port=...)
+if (!string.IsNullOrWhiteSpace(connectionString) && connectionString.StartsWith("postgres"))
+{
+    var uri = new Uri(connectionString);
+    var userInfo = uri.UserInfo.Split(':', 2);
+    
+    // Собираем правильную строку
+    connectionString = $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true";
+}
+
+Console.WriteLine($"DEBUG: Строка подключения ПОСЛЕ конвертации = {connectionString}");
+
+// Подключаем базу данных
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 
 var app = builder.Build();
 
-// 3. Автоматическое применение миграций при запуске (создаст таблицы в облаке)
+// 3. Автоматическое применение миграций
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -31,9 +46,8 @@ app.UseSwaggerUI();
 app.MapGet("/", () => "Minimal API работает!");
 app.MapGet("/api/info", () => new { Application = "Web Technologies", Technology = "ASP.NET Core Minimal API", Version = "1.0" });
 
-// --- 6. CRUD через Entity Framework Core ---
+// --- 6. CRUD ---
 
-// GET: Список всех товаров + поиск по имени (Блок 15)
 app.MapGet("/api/products", async (string? search, AppDbContext db) =>
 {
     var query = db.Products.AsQueryable();
@@ -44,7 +58,6 @@ app.MapGet("/api/products", async (string? search, AppDbContext db) =>
     return Results.Ok(await query.ToListAsync());
 });
 
-// GET: Получить товар по ID
 app.MapGet("/api/products/{id}", async (int id, AppDbContext db) =>
 {
     var product = await db.Products.FirstOrDefaultAsync(x => x.Id == id);
@@ -52,21 +65,17 @@ app.MapGet("/api/products/{id}", async (int id, AppDbContext db) =>
     return Results.Ok(product);
 });
 
-// POST: Создать товар (Блок 16)
 app.MapPost("/api/products", async (Product product, AppDbContext db) =>
 {
-    // Принудительно ставим текущую дату, если она не передана
     if (product.CreatedAt == default)
     {
         product.CreatedAt = DateTime.UtcNow;
     }
-
     db.Products.Add(product);
     await db.SaveChangesAsync();
     return Results.Created($"/api/products/{product.Id}", product);
 });
 
-// PUT: Обновить товар (Блок 17)
 app.MapPut("/api/products/{id}", async (int id, Product updatedProduct, AppDbContext db) =>
 {
     var product = await db.Products.FirstOrDefaultAsync(x => x.Id == id);
@@ -81,7 +90,6 @@ app.MapPut("/api/products/{id}", async (int id, Product updatedProduct, AppDbCon
     return Results.Ok(product);
 });
 
-// DELETE: Удалить товар (Блок 18)
 app.MapDelete("/api/products/{id}", async (int id, AppDbContext db) =>
 {
     var product = await db.Products.FirstOrDefaultAsync(x => x.Id == id);
@@ -92,6 +100,5 @@ app.MapDelete("/api/products/{id}", async (int id, AppDbContext db) =>
     return Results.NoContent();
 });
 
-// 7. Запуск для Render (порт из переменной окружения)
 var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
 app.Run($"http://0.0.0.0:{port}");
