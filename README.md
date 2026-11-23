@@ -5,8 +5,9 @@ REST API для предметной области "Интернет-магаз
 Реализовано хранение данных в памяти, операции CRUD, фильтрация и документация OpenAPI (Swagger).
 
 ## Ссылки
-- **GitHub:** https://github.com/daryavasileva/wt-lab6-6minimalapi-vasileva
-- **Render (публичный API):** https://wt-lab6-6minimalapi-vasileva-1.onrender.com
+## Ссылки на проект
+- **GitHub:** https://github.com/daryavasileva6/wt-lab7-7postgres-efcore-vasileva
+- **Render:** https://wt-lab7-7postgres-efcore-vasileva.onrender.com
 
 ## Эндпоинты
 
