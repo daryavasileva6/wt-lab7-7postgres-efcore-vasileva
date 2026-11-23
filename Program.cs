@@ -102,8 +102,7 @@ app.MapDelete("/api/products/{id}", async (int id, AppDbContext db) =>
     return Results.NoContent();
 });
 
-var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
-app.Run($"http://0.0.0.0:{port}");
+// --- 7. LINQ-запросы (Блок 19) ---
 
 // LINQ 1: Фильтрация по цене (Price > 100)
 app.MapGet("/api/linq/filter", async (AppDbContext db) =>
@@ -125,3 +124,7 @@ app.MapGet("/api/linq/available", async (AppDbContext db) =>
     var products = await db.Products.Where(x => x.IsAvailable).OrderBy(x => x.Name).ToListAsync();
     return Results.Ok(products);
 });
+
+// --- 8. Запуск ---
+var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+app.Run($"http://0.0.0.0:{port}");
