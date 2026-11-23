@@ -1,103 +1,86 @@
-using wt_lab6_6minimalapi_vasileva.Data;
-using wt_lab6_6minimalapi_vasileva.Models;
+using Microsoft.EntityFrameworkCore;
+using wt_lab7_7postgres_efcore_vasileva.Data;
+using wt_lab7_7postgres_efcore_vasileva.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Добавь эти две строки вместо builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Настройка подключения
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+
+if (!string.IsNullOrWhiteSpace(databaseUrl))
+{
+    var uri = new Uri(databaseUrl);
+    var userInfo = uri.UserInfo.Split(':', 2);
+    connectionString = $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Disable";
+}
+
+builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+
 var app = builder.Build();
 
+// Авто-миграции при запуске
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
 
-    app.UseSwagger();
-    app.UseSwaggerUI();
+app.UseSwagger();
+app.UseSwaggerUI();
 
-
-// ... остальной код с эндпоинтами ...
-
-// Корень
 app.MapGet("/", () => "Minimal API работает!");
+app.MapGet("/api/info", () => new { Application = "Web Technologies", Technology = "ASP.NET Core Minimal API", Version = "1.0" });
 
-// Инфо
-app.MapGet("/api/info", () =>
+// --- CRUD через базу данных ---
+
+app.MapGet("/api/products", async (string? search, AppDbContext db) =>
 {
-    return new
-    {
-        Application = "Web Technologies",
-        Technology = "ASP.NET Core Minimal API",
-        Version = "1.0"
-    };
-});
-
-// 3.1 Получить список всех продуктов + 3.3 Поиск по имени (search)
-app.MapGet("/api/products", (string? search) =>
-{
-    var products = ProductStore.Products.AsEnumerable();
-
+    var query = db.Products.AsQueryable();
     if (!string.IsNullOrWhiteSpace(search))
-    {
-        products = products.Where(x => 
-            x.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
-    }
-
-    return Results.Ok(products);
+        query = query.Where(x => x.Name.ToLower().Contains(search.ToLower()));
+    
+    return Results.Ok(await query.ToListAsync());
 });
 
-// 3.2 Получить продукт по ID
-app.MapGet("/api/products/{id}", (int id) =>
+app.MapGet("/api/products/{id}", async (int id, AppDbContext db) =>
 {
-    var product = ProductStore.Products.FirstOrDefault(x => x.Id == id);
-    
-    if (product == null) 
-        return Results.NotFound();
-        
+    var product = await db.Products.FirstOrDefaultAsync(x => x.Id == id);
+    if (product == null) return Results.NotFound();
     return Results.Ok(product);
 });
 
-// 4. POST - Создание нового продукта
-app.MapPost("/api/products", (Product product) =>
+app.MapPost("/api/products", async (Product product, AppDbContext db) =>
 {
-    // Автоматическая генерация ID
-    var newId = ProductStore.Products.Count == 0 
-        ? 1 
-        : ProductStore.Products.Max(x => x.Id) + 1;
-
-    product.Id = newId;
-    ProductStore.Products.Add(product);
-
-    // Возвращаем 201 Created и ссылку на новый ресурс
+    db.Products.Add(product);
+    await db.SaveChangesAsync();
     return Results.Created($"/api/products/{product.Id}", product);
 });
 
-// 5. PUT - Изменение продукта
-app.MapPut("/api/products/{id}", (int id, Product updatedProduct) =>
+app.MapPut("/api/products/{id}", async (int id, Product updatedProduct, AppDbContext db) =>
 {
-    var product = ProductStore.Products.FirstOrDefault(x => x.Id == id);
-    
-    if (product == null) 
-        return Results.NotFound();
+    var product = await db.Products.FirstOrDefaultAsync(x => x.Id == id);
+    if (product == null) return Results.NotFound();
 
-    // Обновляем поля существующего объекта
     product.Name = updatedProduct.Name;
     product.Category = updatedProduct.Category;
     product.Price = updatedProduct.Price;
     product.IsAvailable = updatedProduct.IsAvailable;
 
+    await db.SaveChangesAsync();
     return Results.Ok(product);
 });
 
-// 5. DELETE - Удаление продукта
-app.MapDelete("/api/products/{id}", (int id) =>
+app.MapDelete("/api/products/{id}", async (int id, AppDbContext db) =>
 {
-    var product = ProductStore.Products.FirstOrDefault(x => x.Id == id);
-    
-    if (product == null) 
-        return Results.NotFound();
+    var product = await db.Products.FirstOrDefaultAsync(x => x.Id == id);
+    if (product == null) return Results.NotFound();
 
-    ProductStore.Products.Remove(product);
-    
-    // Возвращаем 204 No Content (успешно, но без тела ответа)
+    db.Products.Remove(product);
+    await db.SaveChangesAsync();
     return Results.NoContent();
 });
 
